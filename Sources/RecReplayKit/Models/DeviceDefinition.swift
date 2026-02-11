@@ -12,20 +12,25 @@ import Foundation
 /// - **Dynamic (in Scenario events):** Connection state changes, notifications,
 ///   read/write operations, RSSI changes
 ///
+/// ## Level-Scoped Design
+/// At GATT level, `advertisement` contains parsed application-level properties
+/// (localName, serviceUUIDs, etc.). At HCI level, `advertisement.raw` contains
+/// the truthful protocol-level data (pduType, adElements).
+///
 /// ## Invariants
 /// - Device definitions are immutable reference data
 /// - `id` must be unique across all device definitions
 /// - Referenced by `DeviceRef.deviceId` in scenarios
 public struct DeviceDefinition: Codable, Sendable, Equatable {
     public let id: String
-    public let advertisement: RawAdvertisementData
 
-    /// Scan response data, if the device responds to active scans.
-    /// In BLE, a device can send both advertisement PDUs (ADV_IND) and
-    /// scan response PDUs (SCAN_RSP) with different AD elements.
-    /// This field captures the scan response separately from the advertisement.
-    /// Available when HCI-level recording captures both PDU types.
-    public let scanResponse: RawAdvertisementData?
+    /// Advertisement data observed for this device.
+    ///
+    /// At GATT level: contains parsed properties (localName, serviceUUIDs,
+    /// manufacturerData, isConnectable, etc.).
+    /// At HCI level: additionally contains `raw` with pduType and adElements,
+    /// and optionally `rawScanResponse` for the scan response PDU.
+    public let advertisement: AdvertisementData?
 
     public let gattProfile: GattProfile?
     public let security: SecurityConfiguration?
@@ -33,15 +38,13 @@ public struct DeviceDefinition: Codable, Sendable, Equatable {
 
     public init(
         id: String,
-        advertisement: RawAdvertisementData,
-        scanResponse: RawAdvertisementData? = nil,
+        advertisement: AdvertisementData? = nil,
         gattProfile: GattProfile? = nil,
         security: SecurityConfiguration? = nil,
         connectionParameters: ConnectionParameters? = nil
     ) {
         self.id = id
         self.advertisement = advertisement
-        self.scanResponse = scanResponse
         self.gattProfile = gattProfile
         self.security = security
         self.connectionParameters = connectionParameters
@@ -66,5 +69,15 @@ public extension DeviceDefinition {
     var requiresEncryption: Bool {
         guard let security = security else { return false }
         return security.securityLevel != nil && security.securityLevel != "none"
+    }
+
+    /// Device local name from advertisement data.
+    var localName: String? {
+        advertisement?.localName
+    }
+
+    /// Whether this device has raw HCI-level advertisement data.
+    var hasRawAdvertisement: Bool {
+        advertisement?.hasRawData ?? false
     }
 }

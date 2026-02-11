@@ -55,64 +55,148 @@ final class DeviceDefinitionTests: XCTestCase {
         XCTAssertEqual(element, decoded)
     }
 
-    // MARK: - RawAdvertisementData Tests
+    // MARK: - RawAdvertisementPDU Tests
 
-    func testRawAdvertisementDataPDUTypes() {
-        XCTAssertEqual(RawAdvertisementData.pduTypeAdvInd, "ADV_IND")
-        XCTAssertEqual(RawAdvertisementData.pduTypeAdvNonconnInd, "ADV_NONCONN_IND")
-        XCTAssertEqual(RawAdvertisementData.pduTypeScanRsp, "SCAN_RSP")
+    func testRawAdvertisementPDUTypeConstants() {
+        XCTAssertEqual(RawAdvertisementPDU.pduTypeAdvInd, "ADV_IND")
+        XCTAssertEqual(RawAdvertisementPDU.pduTypeAdvNonconnInd, "ADV_NONCONN_IND")
+        XCTAssertEqual(RawAdvertisementPDU.pduTypeScanRsp, "SCAN_RSP")
     }
 
-    func testRawAdvertisementDataConnectable() {
-        let connectable = RawAdvertisementData.connectable(adElements: [])
+    func testRawAdvertisementPDUConnectable() {
+        let connectable = RawAdvertisementPDU.connectable(adElements: [])
         XCTAssertTrue(connectable.isConnectable)
         XCTAssertFalse(connectable.isScanResponse)
 
-        let nonConnectable = RawAdvertisementData.nonConnectable(adElements: [])
+        let nonConnectable = RawAdvertisementPDU.nonConnectable(adElements: [])
         XCTAssertFalse(nonConnectable.isConnectable)
 
-        let scanResponse = RawAdvertisementData.scanResponse(adElements: [])
+        let scanResponse = RawAdvertisementPDU.scanResponse(adElements: [])
         XCTAssertTrue(scanResponse.isScanResponse)
         XCTAssertFalse(scanResponse.isConnectable)
     }
 
-    func testRawAdvertisementDataElementAccess() {
+    func testRawAdvertisementPDUElementAccess() {
         let elements = [
             ADElement(type: 0x01, data: "06"),
             ADElement(type: 0x09, data: "416C65636B"),
             ADElement(type: 0xFF, data: "3905416C65636B")
         ]
-        let adv = RawAdvertisementData(pduType: "ADV_IND", adElements: elements)
+        let pdu = RawAdvertisementPDU(pduType: "ADV_IND", adElements: elements)
 
-        XCTAssertNotNil(adv.element(ofType: 0x09))
-        XCTAssertNil(adv.element(ofType: 0x0A))
-        XCTAssertTrue(adv.hasElement(ofType: 0xFF))
-        XCTAssertNotNil(adv.manufacturerData)
-        XCTAssertNotNil(adv.localNameElement)
+        XCTAssertNotNil(pdu.element(ofType: 0x09))
+        XCTAssertNil(pdu.element(ofType: 0x0A))
+        XCTAssertTrue(pdu.hasElement(ofType: 0xFF))
+        XCTAssertNotNil(pdu.manufacturerData)
+        XCTAssertNotNil(pdu.localNameElement)
     }
 
-    func testRawAdvertisementDataCodable() throws {
+    func testRawAdvertisementPDUCodable() throws {
         let elements = [
             ADElement(type: 0x01, data: "06"),
             ADElement(type: 0x09, data: "416C65636B")
         ]
-        let adv = RawAdvertisementData(pduType: "ADV_IND", adElements: elements)
+        let pdu = RawAdvertisementPDU(pduType: "ADV_IND", adElements: elements)
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(pdu)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(RawAdvertisementPDU.self, from: data)
+
+        XCTAssertEqual(pdu, decoded)
+    }
+
+    // MARK: - AdvertisementData Tests (Level-Scoped)
+
+    func testAdvertisementDataGattLevelOnly() {
+        // At GATT level: only parsed properties, no raw data
+        let adv = AdvertisementData(
+            localName: "Snow Core [C34]",
+            serviceUUIDs: ["0000180F-0000-1000-8000-00805F9B34FB"],
+            txPowerLevel: 4,
+            isConnectable: true
+        )
+
+        XCTAssertEqual(adv.localName, "Snow Core [C34]")
+        XCTAssertEqual(adv.serviceUUIDs?.count, 1)
+        XCTAssertEqual(adv.isConnectable, true)
+        XCTAssertEqual(adv.txPowerLevel, 4)
+        XCTAssertNil(adv.raw)
+        XCTAssertNil(adv.rawScanResponse)
+        XCTAssertFalse(adv.hasRawData)
+        XCTAssertFalse(adv.hasScanResponse)
+    }
+
+    func testAdvertisementDataHCILevel() {
+        // At HCI level: parsed properties + raw PDU detail
+        let rawPDU = RawAdvertisementPDU.connectable(adElements: [
+            ADElement.flags(0x06),
+            ADElement.completeLocalName("Snow Core [C34]")
+        ])
+        let scanRsp = RawAdvertisementPDU.scanResponse(adElements: [
+            ADElement.completeLocalName("Snow Core [C34]")
+        ])
+        let adv = AdvertisementData(
+            localName: "Snow Core [C34]",
+            isConnectable: true,
+            raw: rawPDU,
+            rawScanResponse: scanRsp
+        )
+
+        XCTAssertEqual(adv.localName, "Snow Core [C34]")
+        XCTAssertTrue(adv.hasRawData)
+        XCTAssertTrue(adv.hasScanResponse)
+        XCTAssertEqual(adv.raw?.pduType, "ADV_IND")
+        XCTAssertEqual(adv.rawScanResponse?.pduType, "SCAN_RSP")
+    }
+
+    func testAdvertisementDataCodable() throws {
+        let adv = AdvertisementData(
+            localName: "Test",
+            serviceUUIDs: ["180F"],
+            manufacturerData: "3905FF",
+            isConnectable: true
+        )
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(adv)
 
         let decoder = JSONDecoder()
-        let decoded = try decoder.decode(RawAdvertisementData.self, from: data)
+        let decoded = try decoder.decode(AdvertisementData.self, from: data)
 
         XCTAssertEqual(adv, decoded)
+    }
+
+    func testAdvertisementDataCodableWithRaw() throws {
+        let rawPDU = RawAdvertisementPDU.connectable(adElements: [
+            ADElement.completeLocalName("Test")
+        ])
+        let adv = AdvertisementData(
+            localName: "Test",
+            isConnectable: true,
+            raw: rawPDU
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(adv)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(AdvertisementData.self, from: data)
+
+        XCTAssertEqual(adv, decoded)
+        XCTAssertNotNil(decoded.raw)
+        XCTAssertEqual(decoded.raw?.adElements.count, 1)
     }
 
     // MARK: - DeviceDefinition Tests
 
     func testDeviceDefinitionCreation() {
-        let adv = RawAdvertisementData.connectable(adElements: [
-            ADElement.completeLocalName("Test Device")
-        ])
+        // GATT level: just parsed advertisement properties
+        let adv = AdvertisementData(
+            localName: "Test Device",
+            isConnectable: true
+        )
 
         let definition = DeviceDefinition(
             id: "test-device-v1",
@@ -120,13 +204,14 @@ final class DeviceDefinitionTests: XCTestCase {
         )
 
         XCTAssertEqual(definition.id, "test-device-v1")
+        XCTAssertEqual(definition.localName, "Test Device")
         XCTAssertNil(definition.gattProfile)
         XCTAssertNil(definition.security)
         XCTAssertNil(definition.connectionParameters)
     }
 
     func testDeviceDefinitionWithAllProperties() {
-        let adv = RawAdvertisementData.connectable(adElements: [])
+        let adv = AdvertisementData(localName: "Full Device", isConnectable: true)
         let gatt = GattProfile(mtu: 247, services: [])
         let security = SecurityConfiguration(authenticationRequired: true, securityLevel: "authenticated")
         let connParams = ConnectionParameters(preferredMTU: 247)
@@ -145,16 +230,16 @@ final class DeviceDefinitionTests: XCTestCase {
     }
 
     func testDeviceDefinitionIdentifiable() {
-        let adv = RawAdvertisementData.connectable(adElements: [])
-        let definition = DeviceDefinition(id: "my-device", advertisement: adv)
+        let definition = DeviceDefinition(id: "my-device")
 
         XCTAssertEqual(definition.id, "my-device")
     }
 
     func testDeviceDefinitionCodable() throws {
-        let adv = RawAdvertisementData.connectable(adElements: [
-            ADElement.completeLocalName("Test")
-        ])
+        let adv = AdvertisementData(
+            localName: "Test",
+            isConnectable: true
+        )
         let definition = DeviceDefinition(id: "test-v1", advertisement: adv)
 
         let encoder = JSONEncoder()
@@ -164,5 +249,44 @@ final class DeviceDefinitionTests: XCTestCase {
         let decoded = try decoder.decode(DeviceDefinition.self, from: data)
 
         XCTAssertEqual(definition, decoded)
+    }
+
+    func testDeviceDefinitionMinimal() {
+        // Minimum viable DeviceDefinition: just an ID
+        let definition = DeviceDefinition(id: "bare-device")
+
+        XCTAssertEqual(definition.id, "bare-device")
+        XCTAssertNil(definition.advertisement)
+        XCTAssertNil(definition.gattProfile)
+        XCTAssertNil(definition.localName)
+        XCTAssertFalse(definition.hasRawAdvertisement)
+    }
+
+    func testDeviceDefinitionWithHCIAdvertisement() {
+        // Full HCI-level recording with raw PDU and scan response
+        let rawPDU = RawAdvertisementPDU.connectable(adElements: [
+            ADElement.flags(0x06),
+            ADElement.completeLocalName("Snow Core"),
+            ADElement.manufacturerData(companyId: 0x0539, data: "FF416C65636B")
+        ])
+        let scanRsp = RawAdvertisementPDU.scanResponse(adElements: [
+            ADElement.completeLocalName("Snow Core [C34]")
+        ])
+
+        let adv = AdvertisementData(
+            localName: "Snow Core [C34]",
+            serviceUUIDs: ["0000180F-0000-1000-8000-00805F9B34FB"],
+            manufacturerData: "3905FF416C65636B",
+            isConnectable: true,
+            raw: rawPDU,
+            rawScanResponse: scanRsp
+        )
+
+        let definition = DeviceDefinition(id: "snow-core-v1", advertisement: adv)
+
+        XCTAssertEqual(definition.localName, "Snow Core [C34]")
+        XCTAssertTrue(definition.hasRawAdvertisement)
+        XCTAssertEqual(definition.advertisement?.raw?.adElements.count, 3)
+        XCTAssertEqual(definition.advertisement?.rawScanResponse?.pduType, "SCAN_RSP")
     }
 }
