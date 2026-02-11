@@ -15,7 +15,6 @@ protocol OutputFormatter {
     func formatEvent(_ event: Event, elapsedMs: Int) -> String
     func formatPlaybackHeader(file: String, eventCount: Int, durationMs: Int) -> String
     func formatPlaybackFooter(eventsPlayed: Int, durationMs: Int) -> String
-    func formatConversionResult(inputPath: String, outputPath: String, eventCount: Int) -> String
     func formatError(_ error: Error) -> String
 }
 

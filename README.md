@@ -22,7 +22,6 @@ BLE scenario recording and replay for deterministic integration testing.
 │                        recreplay                            │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │    validate     │      info       │         play            │
-│    convert      │                 │                         │
 └─────────────────┴─────────────────┴─────────────────────────┘
 ```
 

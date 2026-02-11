@@ -6,13 +6,12 @@ import RecReplayKit
 struct RecReplay: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "recreplay",
-        abstract: "BLE scenario recorder and player CLI",
+        abstract: "BLE scenario player CLI",
         version: "1.0.0",
         subcommands: [
             Validate.self,
             Info.self,
-            Play.self,
-            Convert.self
+            Play.self
         ],
         defaultSubcommand: Info.self
     )

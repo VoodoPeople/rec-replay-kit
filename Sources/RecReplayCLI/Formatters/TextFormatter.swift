@@ -119,11 +119,6 @@ struct TextFormatter: OutputFormatter {
         return "\(footer) \(eventsPlayed) events in \(String(format: "%.2fs", durationSeconds))"
     }
 
-    func formatConversionResult(inputPath: String, outputPath: String, eventCount: Int) -> String {
-        let checkmark = "OK".colored(.green, enabled: useColor)
-        return "\(checkmark) Converted \(inputPath) -> \(outputPath) (\(eventCount) events)"
-    }
-
     func formatError(_ error: Error) -> String {
         let prefix = "Error:".colored(.red, enabled: useColor).bold(enabled: useColor)
         return "\(prefix) \(error.localizedDescription)"

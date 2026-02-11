@@ -78,16 +78,6 @@ struct JsonFormatter: OutputFormatter {
         return toJsonCompact(output)
     }
 
-    func formatConversionResult(inputPath: String, outputPath: String, eventCount: Int) -> String {
-        let output: [String: Any] = [
-            "status": "success",
-            "inputPath": inputPath,
-            "outputPath": outputPath,
-            "eventCount": eventCount
-        ]
-        return toJson(output)
-    }
-
     func formatError(_ error: Error) -> String {
         let output: [String: Any] = [
             "error": true,
